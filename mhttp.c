@@ -57,9 +57,7 @@ void send_error(struct client_t *client, int error_code, char *reason)
 	char response[BUFF_SIZE];
 
 	snprintf(response, BUFF_SIZE, "HTTP/1.1 %d %s\r\n\
-Server: mhttp\r\nContent-Type: text/plain; charset=UTF-8\r\n\
-Connection: close\r\n\r\n",
-		 error_code, reason);
+Server: mhttp\r\nConnection: close\r\n\r\n", error_code, reason);
 
 	send(client->sockfd, response, strlen(response), 0);
 }
@@ -126,6 +124,11 @@ int send_response(struct client_t *client, struct http_request *request)
 
 	snprintf(complete_path, MAX_DIR_LEN, "%s%s", server.working_dir,
 		 request->uri);
+	if (strstr(complete_path, "..")) {
+		send_error(client, 403, "Forbidden");
+		return -1;
+	}
+
 	get_filetype(request->uri, filetype);
 
 	if ((fp = fopen(complete_path, "r")) == NULL) {
