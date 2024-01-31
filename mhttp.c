@@ -15,11 +15,16 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #define SYSLOG_IDENT "mhttp"
 #define LISTEN_ADDRESS "127.0.0.1"
-#define LISTEN_PORT 8080
+#define LISTEN_PORT 443
 #define WORKING_DIR "./"
+
+#define CERT_FILE "cert.pem"
+#define KEY_FILE "key.pem"
 
 #define BACKLOG 10
 #define MAX_EVENTS 100
@@ -39,11 +44,15 @@ struct server_t {
 	int listen_port;
 	char listen_address[INET_ADDRSTRLEN];
 	char working_dir[MAX_DIR_LEN];
+	char cert_file[MAX_DIR_LEN];
+	char key_file[MAX_DIR_LEN];
+	SSL_CTX *ctx;
 } server;
 
 struct client_t {
 	int sockfd;
 	struct sockaddr_in addr;
+	SSL *ssl;
 };
 
 struct http_request {
@@ -59,7 +68,7 @@ void send_error(struct client_t *client, int error_code, char *reason)
 	snprintf(response, BUFF_SIZE, "HTTP/1.1 %d %s\r\n\
 Server: mhttp\r\nConnection: close\r\n\r\n", error_code, reason);
 
-	send(client->sockfd, response, strlen(response), 0);
+	SSL_write(client->ssl, response, strlen(response));
 }
 
 int parse_request(struct client_t *client, char *request_buffer, int total,
@@ -118,13 +127,13 @@ void get_filetype(char *uri, char *filetype)
 int send_response(struct client_t *client, struct http_request *request)
 {
 	FILE *fp;
-	char complete_path[MAX_DIR_LEN], filetype[MAX_FILETYPE_LEN];
+	char complete_path[MAX_DIR_LEN * 2], filetype[MAX_FILETYPE_LEN];
 	char response_header[BUFF_SIZE];
 	struct stat file_stat;
 
-	snprintf(complete_path, MAX_DIR_LEN, "%s%s", server.working_dir,
+	snprintf(complete_path, MAX_DIR_LEN * 2, "%s%s", server.working_dir,
 		 request->uri);
-	if (strstr(complete_path, "..")) {
+	if (strstr(request->uri, "..")) {
 		send_error(client, 403, "Forbidden");
 		return -1;
 	}
@@ -141,15 +150,15 @@ int send_response(struct client_t *client, struct http_request *request)
 	}
 
 	snprintf(response_header, BUFF_SIZE, "HTTP/1.1 200 OK\r\nServer: mhttp\r\n\
-Content-Type: %s\r\nContent-Length: %d\r\n\r\n", filetype, file_stat.st_size);
-	if (send(client->sockfd, response_header, strlen(response_header), 0) == -1)
+Content-Type: %s\r\nContent-Length: %ld\r\n\r\n", filetype, file_stat.st_size);
+	if (SSL_write(client->ssl, response_header, strlen(response_header)) == -1)
 		return -1;
 
 	if (!strncmp(request->method, "GET", MAX_METHOD_LEN)) {
 		char response_body[BUFF_SIZE];
 		int total;
 		while ((total = fread(response_body, 1, BUFF_SIZE, fp)) > 0) {
-			if (send(client->sockfd, response_body, total, 0) == -1)
+			if (SSL_write(client->ssl, response_body, total) == -1)
 				return -1;
 			memset(response_body, 0, BUFF_SIZE);
 		}
@@ -165,7 +174,7 @@ int process_request(struct client_t *client)
 	char request_buffer[BUFF_SIZE];
 	int total;
 
-	total = recv(client->sockfd, request_buffer, BUFF_SIZE, 0);
+	total = SSL_read(client->ssl, request_buffer, BUFF_SIZE);
 	if (total == 0 || total == -1) {
 		send_error(client, 500, "Internal Server Error");
 		return -1;
@@ -186,6 +195,17 @@ int init_client(int sockfd, struct sockaddr_in *addr)
 	struct epoll_event ev;
 	struct client_t *client = malloc(sizeof(struct client_t));
 	char ip_addr[INET_ADDRSTRLEN];
+	SSL *ssl;
+
+	ssl = SSL_new(server.ctx);
+        SSL_set_fd(ssl, sockfd);
+	client->ssl = ssl;
+
+        if (SSL_accept(ssl) <= 0) {
+		SSL_free(ssl);
+		free(client);
+                return -1;
+	}
 
 	client->sockfd = sockfd;
 	memcpy(&client->addr, addr, sizeof(struct sockaddr_in));
@@ -193,8 +213,12 @@ int init_client(int sockfd, struct sockaddr_in *addr)
 	ev.events = EPOLLIN;
 	ev.data.ptr = client;
 
-	if (epoll_ctl(server.epollfd, EPOLL_CTL_ADD, sockfd, &ev) == -1)
+	if (epoll_ctl(server.epollfd, EPOLL_CTL_ADD, sockfd, &ev) == -1) {
+		SSL_shutdown(ssl);
+		SSL_free(ssl);
+		free(client);
 		return -1;
+	}
 
 	inet_ntop(AF_INET, &addr->sin_addr, ip_addr, INET_ADDRSTRLEN);
 	syslog(LOG_INFO, "%s:%d connected\n", ip_addr, addr->sin_port);
@@ -210,6 +234,8 @@ void close_client(struct client_t *client)
 	syslog(LOG_INFO, "%s:%d disconnected\n", ip_addr,
 	       client->addr.sin_port);
 
+	SSL_shutdown(client->ssl);
+	SSL_free(client->ssl);
 	close(client->sockfd);
 	free(client);
 }
@@ -324,6 +350,7 @@ void signal_exit(int signum)
 	for (unsigned long i = 0; i < rlim.rlim_max; i++)
 		close(i);
 
+	SSL_CTX_free(server.ctx);
 	exit(EXIT_SUCCESS);
 }
 
@@ -386,6 +413,32 @@ void init_socket()
 	}
 }
 
+void init_tls()
+{
+	const SSL_METHOD *method;
+	SSL_CTX *ctx;
+
+	method = TLS_server_method();
+
+	ctx = SSL_CTX_new(method);
+	if (!ctx) {
+		syslog(LOG_ERR, "SSL_CTX_new() error");
+		exit(EXIT_FAILURE);
+	}
+
+	if (SSL_CTX_use_certificate_file(ctx, server.cert_file, SSL_FILETYPE_PEM) <= 0) {
+		printf("hata\n");
+		syslog(LOG_ERR, "SSL_CTX_use_certificate_file() error");
+		exit(EXIT_FAILURE);
+	}
+	if(SSL_CTX_use_PrivateKey_file(ctx, server.key_file, SSL_FILETYPE_PEM) <= 0) {
+		syslog(LOG_ERR, "SSL_CTX_use_PrivateKey_file() error");
+		exit(EXIT_FAILURE);
+	}
+
+	server.ctx = ctx;
+}
+
 void init_epoll()
 {
 	struct epoll_event ev;
@@ -409,6 +462,8 @@ void mhttp_usage()
 \t-a [listen address] : listen address for incoming connection\n\
 \t-p [listen port] : listen port for incoming connections\n\
 \t-d [directory] : main directory to serve\n\
+\t-c [certificate file] : TLS certificate file\n\
+\t-k [key file] : TLS private key file\n\
 \t-h : this help message\n\n");
 }
 
@@ -416,7 +471,7 @@ void arg_parser(int argc, char *argv[])
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "a:p:d:h")) != -1) {
+	while ((opt = getopt(argc, argv, "a:p:d:c:k:h")) != -1) {
 		switch (opt) {
 		case 'a':
 			strncpy(server.listen_address, optarg, INET_ADDRSTRLEN);
@@ -426,6 +481,12 @@ void arg_parser(int argc, char *argv[])
 			break;
 		case 'd':
 			strncpy(server.working_dir, optarg, MAX_DIR_LEN);
+			break;
+		case 'c':
+			strncpy(server.cert_file, optarg, MAX_DIR_LEN);
+			break;
+		case 'k':
+			strncpy(server.key_file, optarg, MAX_DIR_LEN);
 			break;
 		case 'h':
 			mhttp_usage();
@@ -444,6 +505,8 @@ int main(int argc, char *argv[])
 	server.listen_port = LISTEN_PORT;
 	strncpy(server.listen_address, LISTEN_ADDRESS, INET_ADDRSTRLEN);
 	strncpy(server.working_dir, WORKING_DIR, MAX_DIR_LEN);
+	strncpy(server.cert_file, CERT_FILE, MAX_DIR_LEN);
+	strncpy(server.key_file, KEY_FILE, MAX_DIR_LEN);
 
 	if (argc > 1)
 		arg_parser(argc, argv);
@@ -452,6 +515,7 @@ int main(int argc, char *argv[])
 	openlog(SYSLOG_IDENT, LOG_NDELAY | LOG_PID, LOG_USER);
 	init_signal();
 	init_socket();
+	init_tls();
 	init_epoll();
 	mhttp_listener();
 

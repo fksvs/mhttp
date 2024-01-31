@@ -1,8 +1,8 @@
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = -Wall -lcrypto -lssl
 
 mhttp : mhttp.c
-	$(CC) -o mhttp mhttp.c
+	$(CC) $(CFLAGS) -o mhttp mhttp.c
 
 .PHONY : clean
 clean :
