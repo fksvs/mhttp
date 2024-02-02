@@ -2,7 +2,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <syslog.h>
 #include <netinet/in.h>
+#include <sys/resource.h>
 #include "types.h"
 #include "utils.h"
 #include "init.h"
@@ -10,34 +12,51 @@
 #include "response.h"
 #include "server.h"
 
+struct server_t server;
+
+void signal_exit(int signum)
+{
+	struct rlimit rlim;
+
+	syslog(LOG_INFO, "closing %s, signal = %d", SERVER_NAME, signum);
+	closelog();
+
+	if (getrlimit(RLIMIT_NOFILE, &rlim) == -1)
+		exit(EXIT_FAILURE);
+
+	for (unsigned long i = 0; i < rlim.rlim_max; i++)
+		close(i);
+
+	SSL_CTX_free(server.ctx);
+	exit(EXIT_SUCCESS);
+}
+
 int main(int argc, char *argv[])
 {
-	struct server_t server;
+	if (getuid()) {
+		fprintf(stderr, "permission denied.\n");
+		exit(EXIT_FAILURE);
+	}
 
-        if (getuid()) {
-                fprintf(stderr, "permission denied.\n");
-                exit(EXIT_FAILURE);
-        }
+	server.listen_port = LISTEN_PORT;
+	strncpy(server.listen_address, LISTEN_ADDRESS, INET_ADDRSTRLEN);
+	strncpy(server.working_dir, WORKING_DIR, MAX_DIR_LEN);
+	strncpy(server.cert_file, CERT_FILE, MAX_DIR_LEN);
+	strncpy(server.key_file, KEY_FILE, MAX_DIR_LEN);
 
-        server.listen_port = LISTEN_PORT;
-        strncpy(server.listen_address, LISTEN_ADDRESS, INET_ADDRSTRLEN);
-        strncpy(server.working_dir, WORKING_DIR, MAX_DIR_LEN);
-        strncpy(server.cert_file, CERT_FILE, MAX_DIR_LEN);
-        strncpy(server.key_file, KEY_FILE, MAX_DIR_LEN);
+	if (argc > 1)
+		arg_parser(&server, argc, argv);
 
-        if (argc > 1)
-                arg_parser(&server, argc, argv);
+	daemonize_server(&server);
+	init_log();
+	init_signal(&signal_exit);
+	init_socket(&server);
+	init_tls(&server);
+	init_epoll(&server);
+	mhttp_listener(&server);
 
-        // daemonize_server(&server);
-        init_log();
-	init_signal();
-        init_socket(&server);
-        init_tls(&server);
-        init_epoll(&server);
-        mhttp_listener(&server);
+	for (;;)
+		pause();
 
-        for (;;)
-                pause();
-
-        exit(EXIT_SUCCESS);
+	exit(EXIT_SUCCESS);
 }
