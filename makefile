@@ -1,9 +1,13 @@
 CC = gcc
 CFLAGS = -Wall -lcrypto -lssl
 
-mhttp : mhttp.c
-	$(CC) $(CFLAGS) -o mhttp mhttp.c
+SOURCES = $(wildcard src/*.c)
+OBJECTS = $(SOURCES:.c=.o)
+TARGET = mhttp
+
+$(TARGET) : $(OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $^
 
 .PHONY : clean
 clean :
-	rm -f mhttp
+	rm -f $(TARGET) $(OBJECTS)
