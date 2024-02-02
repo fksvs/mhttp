@@ -5,7 +5,8 @@
 #include <openssl/err.h>
 #include "types.h"
 
-void send_error(struct client_t *client, int err_code, char *reason)
+void send_error(struct server_t *server, struct client_t *client,
+		int err_code, char *reason)
 {
 	char response[BUFF_SIZE];
 
@@ -13,7 +14,10 @@ void send_error(struct client_t *client, int err_code, char *reason)
 Server: %s\r\nConnection: close\r\n\r\n",
 		 err_code, reason, SERVER_NAME);
 
-	SSL_write(client->ssl, response, strlen(response));
+	if (server->use_tls)
+		SSL_write(client->ssl, response, strlen(response));
+	else
+		send(client->sockfd, response, strlen(response), 0);
 }
 
 void get_filetype(char *uri, char *filetype)
@@ -48,26 +52,39 @@ int send_response(struct server_t *server, struct client_t *client,
 	get_filetype(request->uri, filetype);
 
 	if ((fp = fopen(complete_path, "r")) == NULL) {
-		send_error(client, 404, "Not Found");
+		send_error(server, client, 404, "Not Found");
 		return -1;
 	}
 	if (stat(complete_path, &file_stat) == -1) {
-		send_error(client, 500, "Internal Server Error");
+		send_error(server, client, 500, "Internal Server Error");
 		return -1;
 	}
 
 	snprintf(response_header, BUFF_SIZE, "HTTP/1.1 200 OK\r\nServer: %s\r\n\
 Content-Type: %s\r\nContent-Length: %ld\r\n\r\n",
 		 SERVER_NAME, filetype, file_stat.st_size);
-	if (SSL_write(client->ssl, response_header, strlen(response_header)) == -1)
-		return -1;
+
+	if (server->use_tls) {
+		if (SSL_write(client->ssl, response_header,
+				strlen(response_header)) == -1)
+			return -1;
+	} else {
+		if (send(client->sockfd, response_header,
+				strlen(response_header), 0) == -1)
+			return -1;
+	}
 
 	if (!strncmp(request->method, "GET", MAX_METHOD_LEN)) {
 		char response_body[BUFF_SIZE];
 		int total;
 		while ((total = fread(response_body, 1, BUFF_SIZE, fp)) > 0) {
-			if (SSL_write(client->ssl, response_body, total) == -1)
-				return -1;
+			if (server->use_tls) {
+				if (SSL_write(client->ssl, response_body, total) == -1)
+					return -1;
+			} else {
+				if (send(client->sockfd, response_body, total, 0) == -1)
+					return -1;
+			}
 			memset(response_body, 0, BUFF_SIZE);
 		}
 	}

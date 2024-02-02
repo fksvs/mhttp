@@ -1,6 +1,7 @@
 #ifndef MHTTP_TYPES
 #define MHTTP_TYPES
 
+#include <stdbool.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <openssl/ssl.h>
@@ -10,6 +11,7 @@
 #define LISTEN_PORT 443
 #define WORKING_DIR "./"
 
+#define DEFAULT_TLS false
 #define CERT_FILE "cert.pem"
 #define KEY_FILE "key.pem"
 
@@ -28,6 +30,7 @@ struct server_t {
 	int listen_port;
 	char listen_address[INET_ADDRSTRLEN];
 	char working_dir[MAX_DIR_LEN];
+	bool use_tls;
 	char cert_file[MAX_DIR_LEN];
 	char key_file[MAX_DIR_LEN];
 	SSL_CTX *ctx;

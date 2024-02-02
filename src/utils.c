@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -7,7 +8,7 @@
 #include <sys/resource.h>
 #include "types.h"
 
-void daemonize_server(struct server_t *server)
+void daemonize_server()
 {
 	int fd;
 	struct sigaction act;
@@ -61,6 +62,7 @@ void mhttp_usage()
 \t-a [listen address] : listen address for incoming connection\n\
 \t-p [listen port] : listen port for incoming connections\n\
 \t-d [directory] : main directory to serve\n\
+\t-s : use TLS\n\
 \t-c [certificate file] : TLS certificate file\n\
 \t-k [key file] : TLS private key file\n\
 \t-h : this help message\n\n");
@@ -70,7 +72,7 @@ void arg_parser(struct server_t *server, int argc, char *argv[])
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "a:p:d:c:k:h")) != -1) {
+	while ((opt = getopt(argc, argv, "a:p:d:sc:k:h")) != -1) {
 		switch (opt) {
 		case 'a':
 			strncpy(server->listen_address, optarg,
@@ -81,6 +83,9 @@ void arg_parser(struct server_t *server, int argc, char *argv[])
 			break;
 		case 'd':
 			strncpy(server->working_dir, optarg, MAX_DIR_LEN);
+			break;
+		case 's':
+			server->use_tls = true;
 			break;
 		case 'c':
 			strncpy(server->cert_file, optarg, MAX_DIR_LEN);

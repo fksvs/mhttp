@@ -20,14 +20,16 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 	char ip_addr[INET_ADDRSTRLEN];
 	SSL *ssl;
 
-	ssl = SSL_new(server->ctx);
-	SSL_set_fd(ssl, sockfd);
-	client->ssl = ssl;
+	if (server->use_tls) {
+		ssl = SSL_new(server->ctx);
+		SSL_set_fd(ssl, sockfd);
+		client->ssl = ssl;
 
-	if (SSL_accept(ssl) <= 0) {
-		SSL_free(ssl);
-		free(client);
-		return -1;
+		if (SSL_accept(ssl) <= 0) {
+			SSL_free(ssl);
+			free(client);
+			return -1;
+		}
 	}
 
 	client->sockfd = sockfd;
@@ -37,8 +39,10 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 	ev.data.ptr = client;
 
 	if (epoll_ctl(server->epollfd, EPOLL_CTL_ADD, sockfd, &ev) == -1) {
-		SSL_shutdown(ssl);
-		SSL_free(ssl);
+		if (server->use_tls) {
+			SSL_shutdown(ssl);
+			SSL_free(ssl);
+		}
 		free(client);
 		return -1;
 	}
@@ -49,7 +53,7 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 	return 0;
 }
 
-void close_client(struct client_t *client)
+void close_client(struct server_t *server, struct client_t *client)
 {
 	char ip_addr[INET_ADDRSTRLEN];
 
@@ -57,8 +61,10 @@ void close_client(struct client_t *client)
 	syslog(LOG_INFO, "%s:%d disconnected\n", ip_addr,
 	       client->addr.sin_port);
 
-	SSL_shutdown(client->ssl);
-	SSL_free(client->ssl);
+	if (server->use_tls) {
+		SSL_shutdown(client->ssl);
+		SSL_free(client->ssl);
+	}
 	close(client->sockfd);
 	free(client);
 }
@@ -94,8 +100,7 @@ void mhttp_listener(struct server_t *server)
 				if (clientfd == -1)
 					continue;
 
-				if (init_client(server, clientfd, &addr) ==
-				    -1) {
+				if (init_client(server, clientfd, &addr) == -1) {
 					close(clientfd);
 					continue;
 				}
@@ -103,7 +108,7 @@ void mhttp_listener(struct server_t *server)
 				struct client_t *client =
 					(struct client_t *)events[n].data.ptr;
 				if (process_request(server, client) == -1)
-					close_client(client);
+					close_client(server, client);
 			}
 		}
 	}
