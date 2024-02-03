@@ -11,12 +11,14 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include "types.h"
+#include "list.h"
 #include "request.h"
 
 int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 {
 	struct epoll_event ev;
 	struct client_t *client = malloc(sizeof(struct client_t));
+	struct node_t *node;
 	char ip_addr[INET_ADDRSTRLEN];
 	SSL *ssl;
 
@@ -37,8 +39,10 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 	client->sockfd = sockfd;
 	memcpy(&client->addr, addr, sizeof(struct sockaddr_in));
 
+	node = list_insert_data(server->client_list, (void *)client);
+
 	ev.events = EPOLLIN;
-	ev.data.ptr = client;
+	ev.data.ptr = node;
 
 	if (epoll_ctl(server->epollfd, EPOLL_CTL_ADD, sockfd, &ev) == -1) {
 		if (server->use_tls) {
@@ -55,9 +59,16 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 	return 0;
 }
 
-void close_client(struct client_t *client)
+void destroy_client(void *data)
+{
+	struct client_t *client = (struct client_t *)data;
+	free(client);
+}
+
+void close_client(struct server_t *server, struct node_t *node)
 {
 	char ip_addr[INET_ADDRSTRLEN];
+	struct client_t *client = (struct client_t *)node->data;
 
 	inet_ntop(AF_INET, &client->addr.sin_addr, ip_addr, INET_ADDRSTRLEN);
 	syslog(LOG_INFO, "%s:%d disconnected\n", ip_addr,
@@ -68,7 +79,7 @@ void close_client(struct client_t *client)
 		SSL_free(client->ssl);
 	}
 	close(client->sockfd);
-	free(client);
+	list_remove_data(server->client_list, node);
 }
 
 void mhttp_listener(struct server_t *server)
@@ -88,9 +99,8 @@ void mhttp_listener(struct server_t *server)
 			if ((events[n].events & EPOLLERR) ||
 			    (events[n].events & EPOLLHUP) ||
 			    (events[n].events & EPOLLRDHUP)) {
-				struct client_t *client =
-					(struct client_t *)events[n].data.ptr;
-				close(client->sockfd);
+				struct node_t *node = (struct node_t *)events[n].data.ptr;
+				close_client(server, node);
 				continue;
 			}
 
@@ -107,10 +117,10 @@ void mhttp_listener(struct server_t *server)
 					continue;
 				}
 			} else {
-				struct client_t *client =
-					(struct client_t *)events[n].data.ptr;
+				struct node_t *node = (struct node_t *)events[n].data.ptr;
+				struct client_t *client = (struct client_t *)node->data;
 				if (process_request(server, client) == -1)
-					close_client(client);
+					close_client(server, node);
 			}
 		}
 	}

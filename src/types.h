@@ -24,6 +24,19 @@
 #define MAX_VER_LEN 10
 #define MAX_FILETYPE_LEN 50
 
+struct node_t {
+	void *data;
+	struct node_t *prev;
+	struct node_t *next;
+};
+
+typedef struct {
+	unsigned int list_size;
+	void (*destroy)(void *data);
+	struct node_t *head;
+	struct node_t *tail;
+} list_t;
+
 struct server_t {
 	int serverfd;
 	int epollfd;
@@ -34,6 +47,7 @@ struct server_t {
 	char cert_file[MAX_DIR_LEN];
 	char key_file[MAX_DIR_LEN];
 	SSL_CTX *ctx;
+	list_t *client_list;
 };
 
 struct client_t {

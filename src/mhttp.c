@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <sys/resource.h>
 #include "types.h"
+#include "list.h"
 #include "utils.h"
 #include "init.h"
 #include "request.h"
@@ -28,6 +29,7 @@ void signal_exit(int signum)
 		close(i);
 
 	SSL_CTX_free(server.ctx);
+	list_destroy(server.client_list);
 	exit(EXIT_SUCCESS);
 }
 
@@ -44,6 +46,7 @@ int main(int argc, char *argv[])
 	server.use_tls = DEFAULT_TLS;
 	strncpy(server.cert_file, CERT_FILE, MAX_DIR_LEN);
 	strncpy(server.key_file, KEY_FILE, MAX_DIR_LEN);
+	server.client_list = init_list(&destroy_client);
 
 	if (argc > 1)
 		arg_parser(&server, argc, argv);
