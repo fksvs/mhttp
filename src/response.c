@@ -5,8 +5,7 @@
 #include <openssl/err.h>
 #include "types.h"
 
-void send_error(struct server_t *server, struct client_t *client,
-		int err_code, char *reason)
+void send_error(struct client_t *client, int err_code, char *reason)
 {
 	char response[BUFF_SIZE];
 
@@ -14,7 +13,7 @@ void send_error(struct server_t *server, struct client_t *client,
 Server: %s\r\nConnection: close\r\n\r\n",
 		 err_code, reason, SERVER_NAME);
 
-	if (server->use_tls)
+	if (client->ssl)
 		SSL_write(client->ssl, response, strlen(response));
 	else
 		send(client->sockfd, response, strlen(response), 0);
@@ -39,7 +38,7 @@ void get_filetype(char *uri, char *filetype)
 }
 
 int send_response(struct server_t *server, struct client_t *client,
-		  struct http_request *request)
+		struct http_request *request)
 {
 	FILE *fp;
 	char complete_path[MAX_DIR_LEN * 2], filetype[MAX_FILETYPE_LEN];
@@ -52,11 +51,11 @@ int send_response(struct server_t *server, struct client_t *client,
 	get_filetype(request->uri, filetype);
 
 	if ((fp = fopen(complete_path, "r")) == NULL) {
-		send_error(server, client, 404, "Not Found");
+		send_error(client, 404, "Not Found");
 		return -1;
 	}
 	if (stat(complete_path, &file_stat) == -1) {
-		send_error(server, client, 500, "Internal Server Error");
+		send_error(client, 500, "Internal Server Error");
 		return -1;
 	}
 
@@ -64,7 +63,7 @@ int send_response(struct server_t *server, struct client_t *client,
 Content-Type: %s\r\nContent-Length: %ld\r\n\r\n",
 		 SERVER_NAME, filetype, file_stat.st_size);
 
-	if (server->use_tls) {
+	if (client->ssl) {
 		if (SSL_write(client->ssl, response_header,
 				strlen(response_header)) == -1)
 			return -1;
@@ -78,7 +77,7 @@ Content-Type: %s\r\nContent-Length: %ld\r\n\r\n",
 		char response_body[BUFF_SIZE];
 		int total;
 		while ((total = fread(response_body, 1, BUFF_SIZE, fp)) > 0) {
-			if (server->use_tls) {
+			if (client->ssl) {
 				if (SSL_write(client->ssl, response_body, total) == -1)
 					return -1;
 			} else {

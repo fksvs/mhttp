@@ -30,6 +30,8 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 			free(client);
 			return -1;
 		}
+	} else {
+		client->ssl = NULL;
 	}
 
 	client->sockfd = sockfd;
@@ -53,7 +55,7 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 	return 0;
 }
 
-void close_client(struct server_t *server, struct client_t *client)
+void close_client(struct client_t *client)
 {
 	char ip_addr[INET_ADDRSTRLEN];
 
@@ -61,7 +63,7 @@ void close_client(struct server_t *server, struct client_t *client)
 	syslog(LOG_INFO, "%s:%d disconnected\n", ip_addr,
 	       client->addr.sin_port);
 
-	if (server->use_tls) {
+	if (client->ssl) {
 		SSL_shutdown(client->ssl);
 		SSL_free(client->ssl);
 	}
@@ -108,7 +110,7 @@ void mhttp_listener(struct server_t *server)
 				struct client_t *client =
 					(struct client_t *)events[n].data.ptr;
 				if (process_request(server, client) == -1)
-					close_client(server, client);
+					close_client(client);
 			}
 		}
 	}
