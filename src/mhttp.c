@@ -5,6 +5,8 @@
 #include <syslog.h>
 #include <netinet/in.h>
 #include <sys/resource.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #include "types.h"
 #include "list.h"
 #include "utils.h"
