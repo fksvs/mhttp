@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
+#include "utils.h"
 #include "types.h"
 
 void daemonize_server()

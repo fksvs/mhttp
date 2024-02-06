@@ -2,6 +2,7 @@
 #include <string.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include "request.h"
 #include "types.h"
 #include "response.h"
 

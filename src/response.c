@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include "response.h"
 #include "types.h"
 
 void send_error(struct client_t *client, int err_code, char *reason)

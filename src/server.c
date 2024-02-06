@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include "server.h"
 #include "types.h"
 #include "list.h"
 #include "request.h"
