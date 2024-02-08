@@ -1,5 +1,5 @@
-#ifndef MHTTP_RESPONSE
-#define MHTTP_RESPONSE
+#ifndef MHTTP_RESPONSE_H
+#define MHTTP_RESPONSE_H
 
 #include "types.h"
 

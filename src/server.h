@@ -1,5 +1,5 @@
-#ifndef MHTTP_SERVER
-#define MHTTP_SERVER
+#ifndef MHTTP_SERVER_H
+#define MHTTP_SERVER_H
 
 #include <sys/socket.h>
 #include "types.h"

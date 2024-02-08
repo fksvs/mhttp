@@ -1,5 +1,5 @@
-#ifndef MHTTP_TYPES
-#define MHTTP_TYPES
+#ifndef MHTTP_TYPES_H
+#define MHTTP_TYPES_H
 
 #include <stdbool.h>
 #include <sys/socket.h>
@@ -52,7 +52,8 @@ struct server_t {
 
 struct client_t {
 	int sockfd;
-	struct sockaddr_in addr;
+	int client_port;
+	char client_addr[INET_ADDRSTRLEN];
 	SSL *ssl;
 };
 

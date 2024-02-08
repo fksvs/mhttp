@@ -1,5 +1,5 @@
-#ifndef MHTTP_REQUEST
-#define MHTTP_REQUEST
+#ifndef MHTTP_REQUEST_H
+#define MHTTP_REQUEST_H
 
 #include "types.h"
 

@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -lcrypto -lssl
+CFLAGS = -Wall -Werror -lcrypto -lssl
 
 SOURCES = $(wildcard src/*.c)
 OBJECTS = $(SOURCES:.c=.o)

@@ -1,5 +1,5 @@
-#ifndef MHTTP_LIST
-#define MHTTP_LIST
+#ifndef MHTTP_LIST_H
+#define MHTTP_LIST_H
 
 #include "types.h"
 

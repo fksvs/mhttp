@@ -1,5 +1,5 @@
-#ifndef MHTTP_INIT
-#define MHTTP_INIT
+#ifndef MHTTP_INIT_H
+#define MHTTP_INIT_H
 
 #include "types.h"
 

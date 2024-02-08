@@ -1,5 +1,5 @@
-#ifndef MHTTP_UTILS
-#define MHTTP_UTILS
+#ifndef MHTTP_UTILS_H
+#define MHTTP_UTILS_H
 
 #include "types.h"
 

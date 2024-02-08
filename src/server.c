@@ -17,10 +17,9 @@
 
 int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 {
-	struct epoll_event ev;
 	struct client_t *client = malloc(sizeof(struct client_t));
+	struct epoll_event ev;
 	struct node_t *node;
-	char ip_addr[INET_ADDRSTRLEN];
 	SSL *ssl;
 
 	if (server->use_tls) {
@@ -38,7 +37,8 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 	}
 
 	client->sockfd = sockfd;
-	memcpy(&client->addr, addr, sizeof(struct sockaddr_in));
+	client->client_port = ntohs(addr->sin_port);
+	inet_ntop(AF_INET, &addr->sin_addr, client->client_addr, INET_ADDRSTRLEN);
 
 	node = list_insert_data(server->client_list, (void *)client);
 
@@ -54,8 +54,8 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 		return -1;
 	}
 
-	inet_ntop(AF_INET, &addr->sin_addr, ip_addr, INET_ADDRSTRLEN);
-	syslog(LOG_INFO, "%s:%d connected\n", ip_addr, addr->sin_port);
+	syslog(LOG_INFO, "%s:%d connected\n", client->client_addr,
+						client->client_port);
 
 	return 0;
 }
@@ -68,12 +68,10 @@ void destroy_client(void *data)
 
 void close_client(struct server_t *server, struct node_t *node)
 {
-	char ip_addr[INET_ADDRSTRLEN];
 	struct client_t *client = (struct client_t *)node->data;
 
-	inet_ntop(AF_INET, &client->addr.sin_addr, ip_addr, INET_ADDRSTRLEN);
-	syslog(LOG_INFO, "%s:%d disconnected\n", ip_addr,
-	       client->addr.sin_port);
+	syslog(LOG_INFO, "%s:%d disconnected\n", client->client_addr,
+						client->client_port);
 
 	if (client->ssl) {
 		SSL_shutdown(client->ssl);

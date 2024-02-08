@@ -78,8 +78,7 @@ void init_epoll(struct server_t *server)
 
 	ev.events = EPOLLIN;
 	ev.data.fd = server->serverfd;
-	if (epoll_ctl(server->epollfd, EPOLL_CTL_ADD, server->serverfd, &ev) ==
-	    -1) {
+	if (epoll_ctl(server->epollfd, EPOLL_CTL_ADD, server->serverfd, &ev) == -1) {
 		syslog(LOG_ERR, "epoll_ctl() error : %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
