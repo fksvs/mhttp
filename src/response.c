@@ -6,6 +6,22 @@
 #include "response.h"
 #include "types.h"
 
+static struct mime_entry mime_dict[] = {
+	{".txt", "text/plain"},
+	{".html", "text/html"},
+	{".css", "text/css"},
+	{".xml", "application/xml"},
+	{".bin", "application/octet-stream"},
+	{".js", "text/javascript"},
+	{".json", "application/json"},
+	{".jpg", "image/jpg"},
+	{".jpeg", "image/jpeg"},
+	{".png", "image/png"},
+	{".svg", "image/svg+xml"},
+	{".gif", "image/gif"},
+	{".tar", "application/x-tar"}
+};
+
 void send_error(struct client_t *client, int err_code, char *reason)
 {
 	char response[BUFF_SIZE];
@@ -20,29 +36,30 @@ Server: %s\r\nConnection: close\r\n\r\n",
 		send(client->sockfd, response, strlen(response), 0);
 }
 
-void get_filetype(char *uri, char *filetype)
-{
-	if (strstr(uri, ".html"))
-		strncpy(filetype, "text/html", MAX_FILETYPE_LEN);
-	else if (strstr(uri, ".css"))
-		strncpy(filetype, "text/css", MAX_FILETYPE_LEN);
-	else if (strstr(uri, ".gif"))
-		strncpy(filetype, "image/gif", MAX_FILETYPE_LEN);
-	else if (strstr(uri, ".jpg") || strstr(uri, ".jpeg"))
-		strncpy(filetype, "image/jpg", MAX_FILETYPE_LEN);
-	else if (strstr(uri, ".js"))
-		strncpy(filetype, "text/javascript", MAX_FILETYPE_LEN);
-	else if (strstr(uri, ".xml"))
-		strncpy(filetype, "text/xml", MAX_FILETYPE_LEN);
-	else
-		strncpy(filetype, "text/plain", MAX_FILETYPE_LEN);
+static int get_filetype(char *uri, char *filetype) {
+	char *extension = strrchr(uri, '.');
+	size_t num_items = sizeof(mime_dict) / sizeof(struct mime_entry) - 1;
+
+	if (extension != NULL && extension != uri) {
+		for (int i = 0; i < num_items; i++) {
+			if (!strncmp(mime_dict[i].extension, extension,
+					MAX_EXTENSION_LEN)) {
+				strncpy(filetype, mime_dict[i].mime_type,
+					MAX_MIME_TYPE_LEN);
+				return 0;
+			}
+		}
+	}
+
+	strncpy(filetype, "application/octet-stream", MAX_MIME_TYPE_LEN);
+	return 0;
 }
 
 int send_response(struct server_t *server, struct client_t *client,
 		struct http_request *request)
 {
 	FILE *fp;
-	char complete_path[MAX_DIR_LEN * 2], filetype[MAX_FILETYPE_LEN];
+	char complete_path[MAX_DIR_LEN * 2], filetype[MAX_MIME_TYPE_LEN];
 	char response_header[BUFF_SIZE];
 	struct stat file_stat;
 

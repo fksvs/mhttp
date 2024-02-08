@@ -22,7 +22,10 @@
 #define MAX_METHOD_LEN 10
 #define MAX_DIR_LEN 256
 #define MAX_VER_LEN 10
-#define MAX_FILETYPE_LEN 50
+
+#define MAX_EXTENSION_LEN 10
+#define MAX_MIME_TYPE_LEN 50
+#define MAX_EXTENSIONS 100
 
 struct node_t {
 	void *data;
@@ -61,6 +64,11 @@ struct http_request {
 	char method[MAX_METHOD_LEN];
 	char uri[MAX_DIR_LEN];
 	char version[MAX_VER_LEN];
+};
+
+struct mime_entry {
+	char extension[MAX_EXTENSION_LEN];
+	char mime_type[MAX_MIME_TYPE_LEN];
 };
 
 #endif
