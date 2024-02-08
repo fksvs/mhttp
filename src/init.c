@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include <errno.h>
-#include <syslog.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <sys/resource.h>
@@ -13,6 +12,7 @@
 #include "init.h"
 #include "types.h"
 #include "request.h"
+#include "log.h"
 
 void init_signal(void (*signal_exit)(int))
 {
@@ -21,27 +21,25 @@ void init_signal(void (*signal_exit)(int))
 	act.sa_handler = signal_exit;
 
 	if (sigaction(SIGINT, &act, NULL) == -1) {
-		syslog(LOG_ERR, "sigaction() [SIGINT] error : %s",
-		       strerror(errno));
+		log_error("sigaction() [SIGINT] error : %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	if (sigaction(SIGTERM, &act, NULL) == -1) {
-		syslog(LOG_ERR, "sigaction() [SIGTERM] error : %s",
-		       strerror(errno));
+		log_error("sigaction() [SIGTERM] error : %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
 	memset(&act, 0, sizeof(struct sigaction));
 	act.sa_handler = SIG_IGN;
 	if (sigaction(SIGPIPE, &act, NULL) == -1) {
-		syslog(LOG_ERR, "sigaction() [SIGPIPE] error: %s",
-		       strerror(errno));
+		log_error("sigaction() [SIGPIPE] error : %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 }
 
 void init_tls(struct server_t *server)
 {
+	unsigned long err;
 	const SSL_METHOD *method;
 	SSL_CTX *ctx;
 
@@ -49,18 +47,23 @@ void init_tls(struct server_t *server)
 
 	ctx = SSL_CTX_new(method);
 	if (!ctx) {
-		syslog(LOG_ERR, "SSL_CTX_new() error");
+		err = ERR_get_error();
+		log_error("SSL_CTX_new() error : %s", ERR_error_string(err, NULL));
 		exit(EXIT_FAILURE);
 	}
 
 	if (SSL_CTX_use_certificate_file(ctx, server->cert_file,
 					 SSL_FILETYPE_PEM) <= 0) {
-		syslog(LOG_ERR, "SSL_CTX_use_certificate_file() error");
+		err = ERR_get_error();
+		log_error("SSL_CTX_use_certificate_file() error : %s",
+				ERR_error_string(err, NULL));
 		exit(EXIT_FAILURE);
 	}
 	if (SSL_CTX_use_PrivateKey_file(ctx, server->key_file,
 					SSL_FILETYPE_PEM) <= 0) {
-		syslog(LOG_ERR, "SSL_CTX_use_PrivateKey_file() error");
+		err = ERR_get_error();
+		log_error("SSL_CTX_use_PrivateKey_file() error : %s",
+				ERR_error_string(err, NULL));
 		exit(EXIT_FAILURE);
 	}
 
@@ -72,14 +75,14 @@ void init_epoll(struct server_t *server)
 	struct epoll_event ev;
 
 	if ((server->epollfd = epoll_create1(0)) == -1) {
-		syslog(LOG_ERR, "epoll_create1() error : %s", strerror(errno));
+		log_error("epoll_create1() error : %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
 	ev.events = EPOLLIN;
 	ev.data.fd = server->serverfd;
 	if (epoll_ctl(server->epollfd, EPOLL_CTL_ADD, server->serverfd, &ev) == -1) {
-		syslog(LOG_ERR, "epoll_ctl() error : %s", strerror(errno));
+		log_error("epoll_ctl() error : %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 }
@@ -95,29 +98,48 @@ void init_socket(struct server_t *server)
 	inet_pton(AF_INET, server->listen_address, &addr.sin_addr.s_addr);
 
 	if ((server->serverfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		syslog(LOG_ERR, "socket() error : %s", strerror(errno));
+		log_error("socket() error : %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	if (setsockopt(server->serverfd, SOL_SOCKET, SO_REUSEADDR, &yes,
 		       sizeof(int)) == -1) {
-		syslog(LOG_ERR, "setsockopt() error : %s", strerror(errno));
+		log_error("setsockopt() error : %s", strerror(errno));
 		close(server->serverfd);
 		exit(EXIT_FAILURE);
 	}
 	if (bind(server->serverfd, (struct sockaddr *)&addr,
 		 sizeof(struct sockaddr_in)) == -1) {
-		syslog(LOG_ERR, "bind() error : %s", strerror(errno));
+		log_error("bind() error : %s", strerror(errno));
 		close(server->serverfd);
 		exit(EXIT_FAILURE);
 	}
 	if (listen(server->serverfd, BACKLOG) == -1) {
-		syslog(LOG_ERR, "listen() error : %s", strerror(errno));
+		log_error("listen() error : %s", strerror(errno));
 		close(server->serverfd);
 		exit(EXIT_FAILURE);
 	}
 }
 
-void init_log()
+void init_log(struct server_t *server)
 {
-	openlog(SERVER_NAME, LOG_NDELAY | LOG_PID, LOG_USER);
+	printf("%s\n", server->log_file);
+	if (server->use_file_log)
+#ifdef DEBUG
+		init_basic_log(server->log_file, LOG_TRACE);
+#else
+		init_basic_log(server->log_file, LOG_INFO);
+#endif
+
+	if (server->use_console_log)
+#ifdef DEBUG
+		init_console(2, LOG_TRACE, false, false, DEFAULT_FORMAT);
+#else
+		init_console(2, LOG_INFO, false, false, DEFAULT_FORMAT);
+#endif
+	else
+#ifndef DEBUG
+		set_quiet(true);
+#else
+		set_quiet(false);
+#endif
 }

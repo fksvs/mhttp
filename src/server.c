@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <syslog.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -14,6 +13,7 @@
 #include "types.h"
 #include "list.h"
 #include "request.h"
+#include "log.h"
 
 int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 {
@@ -54,8 +54,7 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 		return -1;
 	}
 
-	syslog(LOG_INFO, "%s:%d connected\n", client->client_addr,
-						client->client_port);
+	log_info("%s:%d connected", client->client_addr, client->client_port);
 
 	return 0;
 }
@@ -70,8 +69,7 @@ void close_client(struct server_t *server, struct node_t *node)
 {
 	struct client_t *client = (struct client_t *)node->data;
 
-	syslog(LOG_INFO, "%s:%d disconnected\n", client->client_addr,
-						client->client_port);
+	log_error("%s:%d disconnected", client->client_addr, client->client_port);
 
 	if (client->ssl) {
 		SSL_shutdown(client->ssl);
@@ -89,8 +87,7 @@ void mhttp_listener(struct server_t *server)
 	for (;;) {
 		int nfds = epoll_wait(server->epollfd, events, MAX_EVENTS, -1);
 		if (nfds == -1) {
-			syslog(LOG_ERR, "epoll_wait() error : %s",
-			       strerror(errno));
+			log_error("epoll_wait() error : %s", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
 

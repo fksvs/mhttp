@@ -11,6 +11,10 @@
 #define LISTEN_PORT 443
 #define WORKING_DIR "./"
 
+#define DEFAULT_LOG_FILE "/var/log/mhttp"
+#define DEFAULT_FILE_LOG true
+#define DEFAULT_CONSOLE_LOG false
+
 #define DEFAULT_TLS false
 #define CERT_FILE "cert.pem"
 #define KEY_FILE "key.pem"
@@ -41,12 +45,15 @@ typedef struct {
 } list_t;
 
 struct server_t {
+	bool use_tls;
+	bool use_file_log;
+	bool use_console_log;
 	int serverfd;
 	int epollfd;
 	int listen_port;
 	char listen_address[INET_ADDRSTRLEN];
 	char working_dir[MAX_DIR_LEN];
-	bool use_tls;
+	char log_file[MAX_DIR_LEN];
 	char cert_file[MAX_DIR_LEN];
 	char key_file[MAX_DIR_LEN];
 	SSL_CTX *ctx;
