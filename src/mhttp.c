@@ -37,13 +37,10 @@ void signal_exit(int signum)
 
 void init_server_struct()
 {
-	server.use_file_log = DEFAULT_FILE_LOG;
-	server.use_console_log = DEFAULT_CONSOLE_LOG;
-	strncpy(server.log_file, DEFAULT_LOG_FILE, MAX_DIR_LEN);
-
 	server.listen_port = LISTEN_PORT;
 	strncpy(server.listen_address, LISTEN_ADDRESS, INET_ADDRSTRLEN);
 	strncpy(server.working_dir, WORKING_DIR, MAX_DIR_LEN);
+	strncpy(server.log_file, DEFAULT_LOG_FILE, MAX_DIR_LEN);
 
 	server.use_tls = DEFAULT_TLS;
 	strncpy(server.cert_file, CERT_FILE, MAX_DIR_LEN);
@@ -65,8 +62,7 @@ int main(int argc, char *argv[])
 		arg_parser(&server, argc, argv);
 
 #ifndef DEBUG
-	if (!server.use_console_log)
-		daemonize_server();
+	daemonize_server();
 #endif
 	init_log(&server);
 	init_signal(&signal_exit);

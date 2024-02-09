@@ -16,7 +16,6 @@
 static console_log console = { .stream = 2,
 			       .log_level = LOG_TRACE,
 			       .quiet = false,
-			       .color = false,
 			       .log_format = DEFAULT_FORMAT };
 
 static file_log file_logs[MAX_FILE_LOG];
@@ -24,8 +23,6 @@ static int file_log_ind = 0;
 
 static const char *level_string[] = { "FATAL",	"CRITICAL", "ERROR", "WARNING",
 				      "NOTICE", "INFO",	    "DEBUG", "TRACE" };
-static const char *level_color[] = { RED,    RED,   RED,  RED,
-				     YELLOW, GREEN, CYAN, BLUE };
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -39,48 +36,12 @@ static void unlock()
 	pthread_mutex_unlock(&mutex);
 }
 
-void set_stream(int stream)
+void init_console(int stream, int log_level, bool quiet, char *log_format)
 {
-	if (stream == 1 || stream == 2)
-		console.stream = stream;
-	else
-		fprintf(stderr,
-			"stream should be one of the stdout or stderr\n");
-}
-
-void set_level(int log_level)
-{
-	if (log_level < LOG_FATAL)
-		log_level = LOG_FATAL;
-	else if (log_level > LOG_TRACE)
-		log_level = LOG_TRACE;
-
+	console.stream = stream;
 	console.log_level = log_level;
-}
-
-void set_quiet(bool quiet)
-{
 	console.quiet = quiet;
-}
-
-void set_color(bool color)
-{
-	console.color = color;
-}
-
-void set_format(char *log_format)
-{
 	console.log_format = log_format;
-}
-
-void init_console(int stream, int log_level, bool quiet, bool color,
-		  char *log_format)
-{
-	set_stream(stream);
-	set_level(log_level);
-	set_quiet(quiet);
-	set_color(color);
-	set_format(log_format);
 }
 
 int init_file_log(char *filename, int log_level, int log_type,
@@ -104,33 +65,6 @@ int init_file_log(char *filename, int log_level, int log_type,
 	file_logs[file_log_ind].max_file_size = max_file_size;
 	file_logs[file_log_ind].total_file = 1;
 	file_logs[file_log_ind].max_rotation = max_rotation;
-	file_log_ind += 1;
-
-	unlock();
-
-	return fd;
-}
-
-int init_basic_log(char *filename, int log_level)
-{
-	return init_file_log(filename, log_level, BASIC_LOG, 0, 0);
-}
-
-int init_rotate_log(char *filename, int log_level, size_t max_file_size,
-		    size_t max_rotation)
-{
-	return init_file_log(filename, log_level, ROTATE_LOG, max_file_size,
-			     max_rotation);
-}
-
-int add_fd_log(int fd, int log_level)
-{
-	lock();
-
-	memset(&file_logs[file_log_ind], 0, sizeof(file_log));
-	file_logs[file_log_ind].fd = fd;
-	file_logs[file_log_ind].log_level = log_level;
-	file_logs[file_log_ind].log_type = BASIC_LOG;
 	file_log_ind += 1;
 
 	unlock();
@@ -180,7 +114,7 @@ static int rotate_file(file_log *file)
 	return fd;
 }
 
-static int check_rotate(file_log *file, size_t msg_size)
+static int check_rotate(file_log *file, long int msg_size)
 {
 	struct stat st;
 
@@ -268,13 +202,8 @@ static void create_log_msg(char *buffer, log_msg *msg)
 
 static void write_console(const char *data, int log_level)
 {
-	if (console.log_level >= log_level && console.quiet == false) {
-		if (console.color == true)
-			dprintf(console.stream, "%s%s%s",
-				level_color[log_level], data, COLOR_RESET);
-		else
-			write(console.stream, data, strlen(data));
-	}
+	if (console.log_level >= log_level && console.quiet == false)
+		write(console.stream, data, strlen(data));
 }
 
 static void write_log_file(const char *data, int log_level)

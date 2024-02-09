@@ -67,15 +67,14 @@ void mhttp_usage()
 \t-c [certificate file] : TLS certificate file\n\
 \t-k [key file] : TLS private key file\n\
 \t-f [log file] : set log file\n\
-\t-l : enable console logging\n\
-\t-h : this help message\n\n");
+\t-h : display this help\n\n");
 }
 
 void arg_parser(struct server_t *server, int argc, char *argv[])
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "a:p:d:sc:k:f:lh")) != -1) {
+	while ((opt = getopt(argc, argv, "a:p:d:sc:k:f:h")) != -1) {
 		switch (opt) {
 		case 'a':
 			strncpy(server->listen_address, optarg,
@@ -98,9 +97,6 @@ void arg_parser(struct server_t *server, int argc, char *argv[])
 			break;
 		case 'f':
 			strncpy(server->log_file, optarg, MAX_DIR_LEN);
-			break;
-		case 'l':
-			server->use_console_log = true;
 			break;
 		case 'h':
 			mhttp_usage();

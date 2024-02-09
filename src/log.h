@@ -16,7 +16,6 @@ typedef struct {
 	int stream;
 	int log_level;
 	int quiet;
-	int color;
 	char *log_format;
 } console_log;
 
@@ -28,9 +27,9 @@ typedef struct {
 	int fd;
 	int log_level;
 	int log_type;
-	size_t max_file_size;
-	size_t total_file;
-	size_t max_rotation;
+	long int max_file_size;
+	long int total_file;
+	long int max_rotation;
 } file_log;
 
 typedef struct {
@@ -58,29 +57,10 @@ enum {
 	LOG_TRACE
 };
 
-#define RED "\033[0;31m"
-#define GREEN "\033[0;32m"
-#define YELLOW "\033[0;33m"
-#define BLUE "\033[0;34m"
-#define CYAN "\033[0;36m"
-#define COLOR_RESET "\033[0m"
-
-void set_stream(int stream);
-void set_level(int log_level);
-void set_quiet(bool quiet);
-void set_color(bool color);
-void set_format(char *log_format);
-void init_console(int stream, int log_level, bool quiet, bool color,
-		  char *log_format);
-
+void init_console(int stream, int log_level, bool quiet, char *log_format);
 int init_file_log(char *filename, int log_level, int log_type,
 		  size_t max_file_size, size_t max_rotation);
-int init_basic_log(char *filename, int log_level);
-int init_rotate_log(char *filename, int log_level, size_t max_file_size,
-		    size_t max_rotation);
-int add_fd_log(int fd, int log_level);
-
-void close_log_files();
+void close_log_files(void);
 
 #define log_fatal(...) cloglib_log(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__)
 #define log_critical(...) cloglib_log(LOG_CRIT, __FILE__, __LINE__, __VA_ARGS__)

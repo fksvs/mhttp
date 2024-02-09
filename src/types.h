@@ -5,15 +5,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <openssl/ssl.h>
+#include "list.h"
 
 #define SERVER_NAME "mhttp"
 #define LISTEN_ADDRESS "127.0.0.1"
 #define LISTEN_PORT 443
 #define WORKING_DIR "./"
-
 #define DEFAULT_LOG_FILE "/var/log/mhttp"
-#define DEFAULT_FILE_LOG true
-#define DEFAULT_CONSOLE_LOG false
 
 #define DEFAULT_TLS false
 #define CERT_FILE "cert.pem"
@@ -31,23 +29,8 @@
 #define MAX_MIME_TYPE_LEN 50
 #define MAX_EXTENSIONS 100
 
-struct node_t {
-	void *data;
-	struct node_t *prev;
-	struct node_t *next;
-};
-
-typedef struct {
-	unsigned int list_size;
-	void (*destroy)(void *data);
-	struct node_t *head;
-	struct node_t *tail;
-} list_t;
-
 struct server_t {
 	bool use_tls;
-	bool use_file_log;
-	bool use_console_log;
 	int serverfd;
 	int epollfd;
 	int listen_port;

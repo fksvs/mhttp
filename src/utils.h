@@ -3,8 +3,8 @@
 
 #include "types.h"
 
-void daemonize_server();
-void mhttp_usage();
+void daemonize_server(void);
+void mhttp_usage(void);
 void arg_parser(struct server_t *server, int argc, char *argv[]);
 
 #endif

@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Werror -lcrypto -lssl
+CFLAGS = -Wall -Wextra -Werror -Wpedantic -lcrypto -lssl
 DEBUG_FLAGS = -DDEBUG -g
 
 SOURCES = $(wildcard src/*.c)

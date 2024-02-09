@@ -7,7 +7,7 @@
 #include "response.h"
 
 int parse_request(struct client_t *client, char *request_buffer,
-		int total, struct http_request *request)
+		struct http_request *request)
 {
 	char *token, *rest;
 
@@ -61,7 +61,7 @@ int process_request(struct server_t *server, struct client_t *client)
 		return -1;
 	}
 
-	if (parse_request(client, request_buffer, total, &request) == -1)
+	if (parse_request(client, request_buffer, &request) == -1)
 		return -1;
 	if (check_request(client, &request) == -1)
 		return -1;

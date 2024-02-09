@@ -38,7 +38,7 @@ Server: %s\r\nConnection: close\r\n\r\n",
 
 static int get_filetype(char *uri, char *filetype) {
 	char *extension = strrchr(uri, '.');
-	size_t num_items = sizeof(mime_dict) / sizeof(struct mime_entry) - 1;
+	int num_items = sizeof(mime_dict) / sizeof(struct mime_entry) - 1;
 
 	if (extension != NULL && extension != uri) {
 		for (int i = 0; i < num_items; i++) {

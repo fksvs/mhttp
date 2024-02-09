@@ -122,24 +122,11 @@ void init_socket(struct server_t *server)
 
 void init_log(struct server_t *server)
 {
-	printf("%s\n", server->log_file);
-	if (server->use_file_log)
 #ifdef DEBUG
-		init_basic_log(server->log_file, LOG_TRACE);
+	init_file_log(server->log_file, LOG_TRACE, BASIC_LOG, 0, 0);
+	init_console(2, LOG_TRACE, false, DEFAULT_FORMAT);
 #else
-		init_basic_log(server->log_file, LOG_INFO);
-#endif
-
-	if (server->use_console_log)
-#ifdef DEBUG
-		init_console(2, LOG_TRACE, false, false, DEFAULT_FORMAT);
-#else
-		init_console(2, LOG_INFO, false, false, DEFAULT_FORMAT);
-#endif
-	else
-#ifndef DEBUG
-		set_quiet(true);
-#else
-		set_quiet(false);
+	init_file_log(server->log_file, LOG_INFO, BASIC_LOG, 0, 0);
+	init_console(2, LOG_TRACE, true, DEFAULT_FORMAT);
 #endif
 }
