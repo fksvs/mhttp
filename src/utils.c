@@ -62,6 +62,7 @@ void mhttp_usage()
 	fprintf(stdout, "\n usage: ./mhttp [options]\n\n options:\n\
 \t-a [listen address] : listen address for incoming connection\n\
 \t-p [listen port] : listen port for incoming connections\n\
+\t-6 : use IPv6\n\
 \t-d [directory] : main directory to serve\n\
 \t-s : use TLS\n\
 \t-c [certificate file] : TLS certificate file\n\
@@ -74,14 +75,17 @@ void arg_parser(struct server_t *server, int argc, char *argv[])
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "a:p:d:sc:k:f:h")) != -1) {
+	while ((opt = getopt(argc, argv, "a:p:6d:sc:k:f:h")) != -1) {
 		switch (opt) {
 		case 'a':
 			strncpy(server->listen_address, optarg,
-				INET_ADDRSTRLEN);
+				INET6_ADDRSTRLEN);
 			break;
 		case 'p':
 			server->listen_port = atoi(optarg);
+			break;
+		case '6':
+			server->use_ipv6 = true;
 			break;
 		case 'd':
 			strncpy(server->working_dir, optarg, MAX_DIR_LEN);

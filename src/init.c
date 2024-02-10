@@ -7,6 +7,7 @@
 #include <sys/epoll.h>
 #include <sys/resource.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include "init.h"
@@ -89,26 +90,52 @@ void init_epoll(struct server_t *server)
 
 void init_socket(struct server_t *server)
 {
-	struct sockaddr_in addr;
-	int yes = 1;
+	struct sockaddr_storage addr;
+	int domain, yes = 1, no = 0;
+	socklen_t addr_size;
 
-	memset(&addr, 0, sizeof(struct sockaddr_in));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(server->listen_port);
-	inet_pton(AF_INET, server->listen_address, &addr.sin_addr.s_addr);
+	if (server->use_ipv6) {
+		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
+		memset(addr6, 0, sizeof(struct sockaddr_in6));
 
-	if ((server->serverfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		domain = AF_INET6;
+		addr_size = sizeof(struct sockaddr_in6);
+
+		addr6->sin6_family = AF_INET6;
+		addr6->sin6_port = htons(server->listen_port);
+		inet_pton(AF_INET6, server->listen_address, &addr6->sin6_addr.s6_addr);
+	} else {
+		struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr;
+		memset(addr4, 0, sizeof(struct sockaddr_in));
+
+		domain = AF_INET;
+		addr_size = sizeof(struct sockaddr_in);
+
+		addr4->sin_family = AF_INET;
+		addr4->sin_port = htons(server->listen_port);
+		inet_pton(AF_INET, server->listen_address, &addr4->sin_addr.s_addr);
+	}
+
+	if ((server->serverfd = socket(domain, SOCK_STREAM, 0)) == -1) {
 		log_error("socket() error : %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	if (setsockopt(server->serverfd, SOL_SOCKET, SO_REUSEADDR, &yes,
-		       sizeof(int)) == -1) {
-		log_error("setsockopt() error : %s", strerror(errno));
+			sizeof(int)) == -1) {
+		log_error("setsockopt() [SO_REUSEADDR] error : %s", strerror(errno));
 		close(server->serverfd);
 		exit(EXIT_FAILURE);
 	}
-	if (bind(server->serverfd, (struct sockaddr *)&addr,
-		 sizeof(struct sockaddr_in)) == -1) {
+	if (server->use_ipv6) {
+		if (setsockopt(server->serverfd, IPPROTO_IPV6, IPV6_V6ONLY, &no,
+				sizeof(int)) == -1) {
+			log_error("setsockopt() [IPV6_V6ONLY] error : %s",
+				strerror(errno));
+			close(server->serverfd);
+			exit(EXIT_FAILURE);
+		}
+	}
+	if (bind(server->serverfd, (struct sockaddr *)&addr, addr_size) == -1) {
 		log_error("bind() error : %s", strerror(errno));
 		close(server->serverfd);
 		exit(EXIT_FAILURE);

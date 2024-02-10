@@ -8,8 +8,11 @@
 #include "list.h"
 
 #define SERVER_NAME "mhttp"
-#define LISTEN_ADDRESS "127.0.0.1"
+#define LISTEN_ADDRESS_IPV4 "127.0.0.1"
+#define LISTEN_ADDRESS_IPV6 "::ffff:127.0.0.1"
 #define LISTEN_PORT 443
+#define DEFAULT_IPV6 false
+
 #define WORKING_DIR "./"
 #define DEFAULT_LOG_FILE "/var/log/mhttp"
 
@@ -30,11 +33,12 @@
 #define MAX_EXTENSIONS 100
 
 struct server_t {
+	bool use_ipv6;
 	bool use_tls;
 	int serverfd;
 	int epollfd;
 	int listen_port;
-	char listen_address[INET_ADDRSTRLEN];
+	char listen_address[INET6_ADDRSTRLEN];
 	char working_dir[MAX_DIR_LEN];
 	char log_file[MAX_DIR_LEN];
 	char cert_file[MAX_DIR_LEN];
@@ -46,7 +50,7 @@ struct server_t {
 struct client_t {
 	int sockfd;
 	int client_port;
-	char client_addr[INET_ADDRSTRLEN];
+	char client_addr[INET6_ADDRSTRLEN];
 	SSL *ssl;
 };
 

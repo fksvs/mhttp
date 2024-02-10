@@ -15,7 +15,7 @@
 #include "request.h"
 #include "log.h"
 
-int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
+int init_client(struct server_t *server, int sockfd, struct sockaddr_storage *addr)
 {
 	struct client_t *client = malloc(sizeof(struct client_t));
 	struct epoll_event ev;
@@ -37,9 +37,17 @@ int init_client(struct server_t *server, int sockfd, struct sockaddr_in *addr)
 	}
 
 	client->sockfd = sockfd;
-	client->client_port = ntohs(addr->sin_port);
-	inet_ntop(AF_INET, &addr->sin_addr, client->client_addr, INET_ADDRSTRLEN);
 
+	if (server->use_ipv6) {
+		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)addr;
+		client->client_port = ntohs(addr6->sin6_port);
+		inet_ntop(AF_INET6, &addr6->sin6_addr, client->client_addr,
+			INET6_ADDRSTRLEN);
+	} else {
+		struct sockaddr_in *addr4 = (struct sockaddr_in *)addr;
+		client->client_port = ntohs(addr4->sin_port);
+		inet_ntop(AF_INET, &addr4->sin_addr, client->client_addr, INET_ADDRSTRLEN);
+	}
 	node = list_insert_data(server->client_list, (void *)client);
 
 	ev.events = EPOLLIN;
@@ -69,7 +77,7 @@ void close_client(struct server_t *server, struct node_t *node)
 {
 	struct client_t *client = (struct client_t *)node->data;
 
-	log_error("%s:%d disconnected", client->client_addr, client->client_port);
+	log_info("%s:%d disconnected", client->client_addr, client->client_port);
 
 	if (client->ssl) {
 		SSL_shutdown(client->ssl);
@@ -82,7 +90,6 @@ void close_client(struct server_t *server, struct node_t *node)
 void mhttp_listener(struct server_t *server)
 {
 	struct epoll_event events[MAX_EVENTS];
-	socklen_t len = sizeof(struct sockaddr_in);
 
 	for (;;) {
 		int nfds = epoll_wait(server->epollfd, events, MAX_EVENTS, -1);
@@ -101,10 +108,11 @@ void mhttp_listener(struct server_t *server)
 			}
 
 			if (events[n].data.fd == server->serverfd) {
-				struct sockaddr_in addr;
+				struct sockaddr_storage addr;
+				socklen_t addr_size = sizeof(struct sockaddr_storage);
 				int clientfd = accept(server->serverfd,
 						      (struct sockaddr *)&addr,
-						      &len);
+						      &addr_size);
 				if (clientfd == -1)
 					continue;
 

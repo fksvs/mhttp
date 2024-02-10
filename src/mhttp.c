@@ -37,8 +37,14 @@ void signal_exit(int signum)
 
 void init_server_struct()
 {
+	server.use_ipv6 = DEFAULT_IPV6;
 	server.listen_port = LISTEN_PORT;
-	strncpy(server.listen_address, LISTEN_ADDRESS, INET_ADDRSTRLEN);
+
+	if (server.use_ipv6)
+		strncpy(server.listen_address, LISTEN_ADDRESS_IPV6, INET6_ADDRSTRLEN);
+	else
+		strncpy(server.listen_address, LISTEN_ADDRESS_IPV4, INET_ADDRSTRLEN);
+
 	strncpy(server.working_dir, WORKING_DIR, MAX_DIR_LEN);
 	strncpy(server.log_file, DEFAULT_LOG_FILE, MAX_DIR_LEN);
 
@@ -52,7 +58,7 @@ void init_server_struct()
 int main(int argc, char *argv[])
 {
 	if (getuid()) {
-		fprintf(stderr, "permission denied.\n");
+		log_info("permission denied.\n");
 		exit(EXIT_FAILURE);
 	}
 
