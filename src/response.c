@@ -55,57 +55,78 @@ static int get_filetype(char *uri, char *filetype) {
 	return 0;
 }
 
-int send_response(struct server_t *server, struct client_t *client,
-		struct http_request *request)
+static int send_file(struct client_t *client, char *path)
 {
 	FILE *fp;
-	char complete_path[MAX_DIR_LEN * 2], filetype[MAX_MIME_TYPE_LEN];
-	char response_header[BUFF_SIZE];
-	struct stat file_stat;
+	char buffer[BUFF_SIZE];
+	int total, ret;
 
-	snprintf(complete_path, MAX_DIR_LEN * 2, "%s%s", server->working_dir,
-		 request->uri);
-
-	get_filetype(request->uri, filetype);
-
-	if ((fp = fopen(complete_path, "r")) == NULL) {
+	if ((fp = fopen(path, "r")) == NULL) {
 		send_error(client, 404, "Not Found");
 		return -1;
 	}
+
+	while ((total = fread(buffer, 1, BUFF_SIZE, fp)) > 0) {
+		if (client->ssl)
+			ret = SSL_write(client->ssl, buffer, total);
+		else
+			ret = send(client->sockfd, buffer, total, 0);
+
+		if (ret == -1) {
+			fclose(fp);
+			return -1;
+		}
+
+		memset(buffer, 0, BUFF_SIZE);
+	}
+
+	fclose(fp);
+	return 0;
+}
+
+int send_response(struct server_t *server, struct client_t *client,
+		struct http_request *request)
+{
+	char *uri_ptr;
+	char complete_path[MAX_DIR_LEN * 2], filetype[MAX_MIME_TYPE_LEN];
+	char response_header[BUFF_SIZE];
+	struct stat file_stat;
+	int ret;
+
+	if (request->uri[0] == '/')
+		uri_ptr = request->uri + 1;
+	else
+		uri_ptr = request->uri;
+
+	snprintf(complete_path, MAX_DIR_LEN * 2, "%s%s", server->working_dir, uri_ptr);
+	get_filetype(request->uri, filetype);
+
 	if (stat(complete_path, &file_stat) == -1) {
-		send_error(client, 500, "Internal Server Error");
-		return -1;
+		int err = errno;
+		switch (err) {
+		case ENOENT:
+			send_error(client, 404, "Not Found");
+			return -1;
+		default:
+			send_error(client, 500, "Internal Server Error");
+			return -1;
+		}
 	}
 
 	snprintf(response_header, BUFF_SIZE, "HTTP/1.1 200 OK\r\nServer: %s\r\n\
 Content-Type: %s\r\nContent-Length: %ld\r\n\r\n",
-		 SERVER_NAME, filetype, file_stat.st_size);
+		SERVER_NAME, filetype, file_stat.st_size);
 
-	if (client->ssl) {
-		if (SSL_write(client->ssl, response_header,
-				strlen(response_header)) == -1)
-			return -1;
-	} else {
-		if (send(client->sockfd, response_header,
-				strlen(response_header), 0) == -1)
-			return -1;
-	}
+	if (client->ssl)
+		ret = SSL_write(client->ssl, response_header, strlen(response_header));
+	else
+		ret = send(client->sockfd, response_header, strlen(response_header), 0);
 
-	if (!strncmp(request->method, "GET", MAX_METHOD_LEN)) {
-		char response_body[BUFF_SIZE];
-		int total;
-		while ((total = fread(response_body, 1, BUFF_SIZE, fp)) > 0) {
-			if (client->ssl) {
-				if (SSL_write(client->ssl, response_body, total) == -1)
-					return -1;
-			} else {
-				if (send(client->sockfd, response_body, total, 0) == -1)
-					return -1;
-			}
-			memset(response_body, 0, BUFF_SIZE);
-		}
-	}
+	if (ret == -1)
+		return -1;
 
-	fclose(fp);
+	if (!strncmp(request->method, "GET", MAX_METHOD_LEN))
+		return send_file(client, complete_path);
+
 	return 0;
 }

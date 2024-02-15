@@ -37,7 +37,8 @@ int check_request(struct client_t *client, struct http_request *request)
 		send_error(client, 505, "Version Not Supported");
 		return -1;
 	}
-	if (strstr(request->uri, "..")) {
+	if (strstr(request->uri, "../") || strstr(request->uri, "%2e%2e%2f") ||
+		strstr(request->uri, "%2e%2e/") || strstr(request->uri, "..%2f")) {
 		send_error(client, 403, "Forbidden");
 		return -1;
 	}
