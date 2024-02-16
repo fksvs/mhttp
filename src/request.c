@@ -30,7 +30,8 @@ int parse_request(struct client_t *client, char *request_buffer,
 int check_request(struct client_t *client, struct http_request *request)
 {
 	if (strncmp(request->method, "GET", MAX_METHOD_LEN) &&
-	    strncmp(request->method, "HEAD", MAX_METHOD_LEN)) {
+	    strncmp(request->method, "HEAD", MAX_METHOD_LEN) &&
+	    strncmp(request->method, "OPTIONS", MAX_METHOD_LEN)) {
 		send_error(client, 501, "Not Implemented");
 		return -1;
 	}

@@ -53,7 +53,20 @@ static int get_filetype(char *uri, char *filetype) {
 	return 0;
 }
 
-static int send_file(struct client_t *client, char *path)
+static int head_method(struct client_t *client, char *filetype, size_t size)
+{
+	char response_header[BUFF_SIZE];
+
+	snprintf(response_header, BUFF_SIZE, "HTTP/1.1 200 OK\r\nServer: %s\r\n\
+Content-Type: %s\r\nContent-Length: %ld\r\n\r\n", SERVER_NAME, filetype, size);
+
+	if (send_data(client, response_header, strlen(response_header)) <= 0)
+		return -1;
+
+	return 0;
+}
+
+static int get_method(struct client_t *client, char *path, char *filetype, size_t size)
 {
 	FILE *fp;
 	char buffer[BUFF_SIZE];
@@ -63,6 +76,9 @@ static int send_file(struct client_t *client, char *path)
 		send_error(client, 404, "Not Found");
 		return -1;
 	}
+
+	if (head_method(client, filetype, size) < 0)
+		return -1;
 
 	while ((total = fread(buffer, 1, BUFF_SIZE, fp)) > 0) {
 		if (send_data(client, buffer, total) <= 0) {
@@ -77,23 +93,34 @@ static int send_file(struct client_t *client, char *path)
 	return 0;
 }
 
-int send_response(struct server_t *server, struct client_t *client,
-		struct http_request *request)
+static int options_method(struct client_t *client)
 {
-	char *uri_ptr;
-	char complete_path[MAX_DIR_LEN * 2], filetype[MAX_MIME_TYPE_LEN];
 	char response_header[BUFF_SIZE];
+
+	snprintf(response_header, BUFF_SIZE, "HTTP/1.1 200 OK\r\nServer: %s\r\n\
+Allow: GET, HEAD, OPTIONS\r\nConnection: close\r\n\r\n", SERVER_NAME);
+
+	if (send_data(client, response_header, strlen(response_header)) <= 0)
+		return -1;
+
+	return 0;
+}
+
+static void get_complete_path(char *request_uri, char *working_dir, char *path)
+{
+	char *uri_ptr = request_uri;
+
+	if (request_uri[0] == '/')
+		uri_ptr = request_uri + 1;
+
+	snprintf(path, MAX_DIR_LEN * 2, "%s%s", working_dir, uri_ptr);
+}
+
+static size_t get_file_size(struct client_t *client, char *path)
+{
 	struct stat file_stat;
 
-	if (request->uri[0] == '/')
-		uri_ptr = request->uri + 1;
-	else
-		uri_ptr = request->uri;
-
-	snprintf(complete_path, MAX_DIR_LEN * 2, "%s%s", server->working_dir, uri_ptr);
-	get_filetype(request->uri, filetype);
-
-	if (stat(complete_path, &file_stat) == -1) {
+	if (stat(path, &file_stat) == -1) {
 		int err = errno;
 		switch (err) {
 		case ENOENT:
@@ -105,15 +132,26 @@ int send_response(struct server_t *server, struct client_t *client,
 		}
 	}
 
-	snprintf(response_header, BUFF_SIZE, "HTTP/1.1 200 OK\r\nServer: %s\r\n\
-Content-Type: %s\r\nContent-Length: %ld\r\n\r\n",
-		SERVER_NAME, filetype, file_stat.st_size);
+	return file_stat.st_size;
+}
 
-	if (send_data(client, response_header, strlen(response_header)) <= 0)
-		return -1;
+int send_response(struct server_t *server, struct client_t *client,
+		struct http_request *request)
+{
+	char complete_path[MAX_DIR_LEN * 2], filetype[MAX_MIME_TYPE_LEN];
+	size_t file_size;
+
+	get_complete_path(request->uri, server->working_dir, complete_path);
+	get_filetype(request->uri, filetype);
+	if ((file_size = get_file_size(client, complete_path)) == (size_t)-1)
+			return -1;
 
 	if (!strncmp(request->method, "GET", MAX_METHOD_LEN))
-		return send_file(client, complete_path);
+		return get_method(client, complete_path, filetype, file_size);
+	if (!strncmp(request->method, "HEAD", MAX_METHOD_LEN))
+		return head_method(client, filetype, file_size);
+	if (!strncmp(request->method, "OPTIONS", MAX_METHOD_LEN))
+		return options_method(client);
 
 	return 0;
 }
