@@ -28,6 +28,10 @@
 #define MAX_DIR_LEN 256
 #define MAX_VER_LEN 10
 
+#define MAX_HEADERS 20
+#define MAX_HEADER_NAME 50
+#define MAX_HEADER_VALUE 50
+
 #define MAX_EXTENSION_LEN 10
 #define MAX_MIME_TYPE_LEN 50
 #define MAX_EXTENSIONS 100
@@ -54,10 +58,16 @@ struct client_t {
 	SSL *ssl;
 };
 
+struct http_header {
+	char name[MAX_HEADER_NAME];
+	char value[MAX_HEADER_VALUE];
+};
+
 struct http_request {
 	char method[MAX_METHOD_LEN];
 	char uri[MAX_DIR_LEN];
 	char version[MAX_VER_LEN];
+	struct http_header headers[MAX_HEADERS];
 };
 
 struct mime_entry {

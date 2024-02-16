@@ -10,18 +10,52 @@
 int parse_request(struct client_t *client, char *request_buffer,
 		struct http_request *request)
 {
-	char *token, *rest;
+	char *token, *saveptr;
+	char *line, *line_token, *line_saveptr;
+	int ind = 0;
 
-	token = strtok_r(request_buffer, "\r\n", &rest);
-	if (token == NULL) {
+	/* very bad solution i think, but it works. */
+
+	if ((token = strtok_r(request_buffer, " ", &saveptr)) == NULL) {
 		send_error(client, 400, "Bad Request");
 		return -1;
 	}
+	strncpy(request->method, token, MAX_METHOD_LEN);
 
-	if (sscanf(token, "%s %s %s", request->method, request->uri,
-		   request->version) == EOF) {
-		send_error(client, 500, "Internal Server Error");
+	if ((token = strtok_r(NULL, " ", &saveptr)) == NULL) {
+		send_error(client, 400, "Bad Request");
 		return -1;
+	}
+	strncpy(request->uri, token, MAX_DIR_LEN);
+
+	if ((token = strtok_r(NULL, "\r\n", &saveptr)) == NULL) {
+		send_error(client, 400, "Bad request");
+		return -1;
+	}
+	strncpy(request->version, token, MAX_VER_LEN);
+
+	line = strtok_r(saveptr, "\r\n", &line_saveptr);
+	while (line) {
+		if ((line_token = strtok(line, ":")) == NULL)
+			break;
+
+		strncpy(request->headers[ind].name, line_token, MAX_HEADER_NAME);
+
+		if ((line_token = strtok(NULL, "\r\n")) == NULL) {
+			send_error(client, 400, "Bad Request");
+			return -1;
+		}
+
+		while (*line_token == ' ')
+			line_token++;
+
+		strncpy(request->headers[ind].value, line_token, MAX_HEADER_VALUE);
+
+		ind++;
+		if (ind >= MAX_HEADERS)
+			break;
+
+		line = strtok_r(NULL, "\r\n", &line_saveptr);
 	}
 
 	return 0;
