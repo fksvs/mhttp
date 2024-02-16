@@ -4,6 +4,7 @@
 #include <openssl/err.h>
 #include "request.h"
 #include "types.h"
+#include "network.h"
 #include "response.h"
 
 int parse_request(struct client_t *client, char *request_buffer,
@@ -50,14 +51,8 @@ int process_request(struct server_t *server, struct client_t *client)
 {
 	struct http_request request;
 	char request_buffer[BUFF_SIZE];
-	int total;
 
-	if (client->ssl)
-		total = SSL_read(client->ssl, request_buffer, BUFF_SIZE);
-	else
-		total = recv(client->sockfd, request_buffer, BUFF_SIZE, 0);
-
-	if (total == 0 || total == -1) {
+	if (recv_data(client, request_buffer, BUFF_SIZE) <= 0) {
 		send_error(client, 500, "Internal Server Error");
 		return -1;
 	}

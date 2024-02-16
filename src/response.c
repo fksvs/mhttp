@@ -3,8 +3,9 @@
 #include <sys/stat.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-#include "response.h"
 #include "types.h"
+#include "network.h"
+#include "response.h"
 
 static struct mime_entry mime_dict[] = {
 	{".txt", "text/plain"},
@@ -30,10 +31,7 @@ void send_error(struct client_t *client, int err_code, char *reason)
 Server: %s\r\nConnection: close\r\n\r\n",
 		 err_code, reason, SERVER_NAME);
 
-	if (client->ssl)
-		SSL_write(client->ssl, response, strlen(response));
-	else
-		send(client->sockfd, response, strlen(response), 0);
+	send_data(client, response, strlen(response));
 }
 
 static int get_filetype(char *uri, char *filetype) {
@@ -59,7 +57,7 @@ static int send_file(struct client_t *client, char *path)
 {
 	FILE *fp;
 	char buffer[BUFF_SIZE];
-	int total, ret;
+	int total;
 
 	if ((fp = fopen(path, "r")) == NULL) {
 		send_error(client, 404, "Not Found");
@@ -67,12 +65,7 @@ static int send_file(struct client_t *client, char *path)
 	}
 
 	while ((total = fread(buffer, 1, BUFF_SIZE, fp)) > 0) {
-		if (client->ssl)
-			ret = SSL_write(client->ssl, buffer, total);
-		else
-			ret = send(client->sockfd, buffer, total, 0);
-
-		if (ret == -1) {
+		if (send_data(client, buffer, total) <= 0) {
 			fclose(fp);
 			return -1;
 		}
@@ -91,7 +84,6 @@ int send_response(struct server_t *server, struct client_t *client,
 	char complete_path[MAX_DIR_LEN * 2], filetype[MAX_MIME_TYPE_LEN];
 	char response_header[BUFF_SIZE];
 	struct stat file_stat;
-	int ret;
 
 	if (request->uri[0] == '/')
 		uri_ptr = request->uri + 1;
@@ -117,12 +109,7 @@ int send_response(struct server_t *server, struct client_t *client,
 Content-Type: %s\r\nContent-Length: %ld\r\n\r\n",
 		SERVER_NAME, filetype, file_stat.st_size);
 
-	if (client->ssl)
-		ret = SSL_write(client->ssl, response_header, strlen(response_header));
-	else
-		ret = send(client->sockfd, response_header, strlen(response_header), 0);
-
-	if (ret == -1)
+	if (send_data(client, response_header, strlen(response_header)) <= 0)
 		return -1;
 
 	if (!strncmp(request->method, "GET", MAX_METHOD_LEN))
