@@ -10,7 +10,7 @@
 #define SERVER_NAME "mhttp"
 #define LISTEN_ADDRESS_IPV4 "127.0.0.1"
 #define LISTEN_ADDRESS_IPV6 "::ffff:127.0.0.1"
-#define LISTEN_PORT 443
+#define LISTEN_PORT 8000
 #define DEFAULT_IPV6 false
 
 #define WORKING_DIR "./"
