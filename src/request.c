@@ -11,10 +11,6 @@ int parse_request(struct client_t *client, char *request_buffer,
 		struct http_request *request)
 {
 	char *token, *saveptr;
-	char *line, *line_token, *line_saveptr;
-	int ind = 0;
-
-	/* very bad solution i think, but it works. */
 
 	if ((token = strtok_r(request_buffer, " ", &saveptr)) == NULL) {
 		send_error(client, 400, "Bad Request");
@@ -33,30 +29,6 @@ int parse_request(struct client_t *client, char *request_buffer,
 		return -1;
 	}
 	strncpy(request->version, token, MAX_VER_LEN);
-
-	line = strtok_r(saveptr, "\r\n", &line_saveptr);
-	while (line) {
-		if ((line_token = strtok(line, ":")) == NULL)
-			break;
-
-		strncpy(request->headers[ind].name, line_token, MAX_HEADER_NAME);
-
-		if ((line_token = strtok(NULL, "\r\n")) == NULL) {
-			send_error(client, 400, "Bad Request");
-			return -1;
-		}
-
-		while (*line_token == ' ')
-			line_token++;
-
-		strncpy(request->headers[ind].value, line_token, MAX_HEADER_VALUE);
-
-		ind++;
-		if (ind >= MAX_HEADERS)
-			break;
-
-		line = strtok_r(NULL, "\r\n", &line_saveptr);
-	}
 
 	return 0;
 }
